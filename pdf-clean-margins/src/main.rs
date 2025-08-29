@@ -8,11 +8,40 @@ struct CliArgs {
     selections: Vec<String>,
 }
 
+#[derive(Clone, Default, Debug)]
+struct Selection {
+    page_number : u32,
+    left : u32,
+    botton : u32,
+    right : u32,
+    top : u32,
+}
+
+impl Selection {
+    fn new_or_default(s: &str, default_selection: &Selection) -> Self {
+        if s.is_empty() {
+            // Return a cloned copy of the default user.
+            default_selection.clone()
+        } else {
+            Selection { page_number: 42, ..Default::default()}
+        }
+    }
+}
+
 // A custom validation and parsing function for the `selection` argument.
 // It checks if the input string contains only alphanumeric characters.
 // It now returns a `Result<String, String>`, which correctly tells clap
 // that the argument's value should be a String.
 fn is_valid_selection(val: &str) -> Result<String, String> {
+    let ss : Vec<String> = val.split(':').map(|s| s.to_string()).collect();
+    let sslen = ss.len();
+    println!("[{:?}] ss={:?}", sslen, ss);
+    let mut err_msg : String = String::new();
+    if sslen < 1 || 5 < sslen {
+        err_msg = format!("Number of values in {} is {}, must be within [1,5]",
+            val, sslen);
+    }
+    println!("err_msg={}", err_msg);
     if val.chars().all(|c| c.is_alphanumeric()) {
         Ok(val.to_string())
     } else {
