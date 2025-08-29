@@ -1,1 +1,1 @@
-Initiall trvial readme
+Initial trivial readme
