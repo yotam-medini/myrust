@@ -1,23 +1,23 @@
 use clap::{Arg, Command, Error};
 
-// A custom validation function for the `selection` argument.
-// This function checks if the input string contains only alphanumeric characters.
-// It returns a `Result<(), String>` where `Ok(())` indicates success and `Err(String)`
-// provides an error message.
-fn is_valid_selection(val: &str) -> Result<(), String> {
-    if val.chars().all(|c| c.is_alphanumeric()) {
-        Ok(())
-    } else {
-        Err(String::from("Selection must contain only alphanumeric characters"))
-    }
-}
-
 // The CliArgs struct holds the parsed and validated command-line arguments.
 // This provides a clean interface for the main application logic.
 struct CliArgs {
     input_file: String,
     output_file: String,
     selections: Vec<String>,
+}
+
+// A custom validation and parsing function for the `selection` argument.
+// It checks if the input string contains only alphanumeric characters.
+// It now returns a `Result<String, String>`, which correctly tells clap
+// that the argument's value should be a String.
+fn is_valid_selection(val: &str) -> Result<String, String> {
+    if val.chars().all(|c| c.is_alphanumeric()) {
+        Ok(val.to_string())
+    } else {
+        Err(String::from("Selection must contain only alphanumeric characters"))
+    }
 }
 
 // This function is dedicated to parsing the command-line arguments.
@@ -51,14 +51,13 @@ fn parse_arguments() -> Result<CliArgs, Error> {
                 .help("Select a specific item for processing (can be used multiple times)")
                 .action(clap::ArgAction::Append)
                 .required(true)
-                .value_parser(is_valid_selection), // Use the custom validator here
+                .value_parser(is_valid_selection), // This now uses our new parsing function
         )
         .try_get_matches()?; // Use `try_get_matches` to return a Result
 
     // Extract the values and build the `CliArgs` struct.
-    // `.ok_or_else` is used here for non-required arguments, but since all are
-    // required, `.unwrap()` is safe because `try_get_matches` would have already
-    // returned an error if they were missing.
+    // `.unwrap()` is now safe because `try_get_matches` would have already
+    // returned an error if these were missing or invalid.
     let input_file = matches.get_one::<String>("input").unwrap().to_string();
     let output_file = matches.get_one::<String>("output").unwrap().to_string();
     
