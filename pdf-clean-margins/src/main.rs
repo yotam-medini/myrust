@@ -8,30 +8,51 @@ struct CliArgs {
     selections: Vec<String>,
 }
 
+#[repr(usize)]
+#[derive(Debug)]
+enum Side {Left, Bottom, Right, Top, N, }
+
 #[derive(Clone, Default, Debug)]
 struct Selection {
     page_number : u32,
-    left : u32,
-    botton : u32,
-    right : u32,
-    top : u32,
+    margin_width: [u32; Side::N as usize],
 }
 
 impl Selection {
-    fn new_or_default(s: &str, default_selection: &Selection) -> Self {
-        if s.is_empty() {
-            // Return a cloned copy of the default user.
-            default_selection.clone()
+    fn new_or_default(s: &str, default_selection: &Selection) -> Result<Self, String> {
+        let mut err_msg : String = String::new();
+        let ss : Vec<String> = s.split(':').map(|s| s.to_string()).collect();
+        let sslen = ss.len();
+        println!("[{:?}] ss={:?}", sslen, ss);
+        if sslen < 1 || 5 < sslen {
+            err_msg = format!("Number of colon-separated values in {} is {}, must be within [1,5]",
+                s, sslen);
+        }
+        let mut ret : Selection = default_selection.clone();
+        if err_msg.is_empty() {
+            match ss[0].parse::<u32>() {
+                Ok(num) => { ret.page_number = num },
+                Err(e) => { err_msg = e.to_string() },
+            }
+        }
+        let mut i : usize = 0;
+        while err_msg.is_empty() && i + 1 < sslen {
+            if !ss[i + 1].is_empty() {
+                match ss[i + 1].parse::<u32>() {
+                    Ok(num) => { ret.margin_width[i] = num },
+                    Err(e) => { err_msg = e.to_string() },
+                }
+            }
+            i += 1;
+        }
+        if err_msg.is_empty() {
+            Ok(ret)
         } else {
-            Selection { page_number: 42, ..Default::default()}
+            Err(err_msg)
         }
     }
 }
 
-// A custom validation and parsing function for the `selection` argument.
-// It checks if the input string contains only alphanumeric characters.
-// It now returns a `Result<String, String>`, which correctly tells clap
-// that the argument's value should be a String.
 fn is_valid_selection(val: &str) -> Result<String, String> {
     let ss : Vec<String> = val.split(':').map(|s| s.to_string()).collect();
     let sslen = ss.len();
@@ -42,10 +63,10 @@ fn is_valid_selection(val: &str) -> Result<String, String> {
             val, sslen);
     }
     println!("err_msg={}", err_msg);
-    if val.chars().all(|c| c.is_alphanumeric()) {
-        Ok(val.to_string())
-    } else {
-        Err(String::from("Selection must contain only alphanumeric characters"))
+    let default_selection = Selection{ page_number: 0, margin_width: [0, 0, 0, 0], };
+    match Selection::new_or_default(val, &default_selection) {
+        Ok(_) => Ok(val.to_string()),
+        Err(err_msg) => Err(err_msg),
     }
 }
 
@@ -89,7 +110,7 @@ fn parse_arguments() -> Result<CliArgs, Error> {
     // returned an error if these were missing or invalid.
     let input_file = matches.get_one::<String>("input").unwrap().to_string();
     let output_file = matches.get_one::<String>("output").unwrap().to_string();
-    
+
     let selections: Vec<String> = matches.get_many::<String>("selection")
                                         .unwrap()
                                         .map(|s| s.to_string())
@@ -127,6 +148,6 @@ fn process_files(args: &CliArgs) {
     for selection in &args.selections {
         println!("- {}", selection);
     }
-    
+
     // Add your file processing logic here.
 }
