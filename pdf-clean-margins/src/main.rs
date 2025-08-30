@@ -54,15 +54,6 @@ impl Selection {
 }
 
 fn is_valid_selection(val: &str) -> Result<String, String> {
-    let ss : Vec<String> = val.split(':').map(|s| s.to_string()).collect();
-    let sslen = ss.len();
-    println!("[{:?}] ss={:?}", sslen, ss);
-    let mut err_msg : String = String::new();
-    if sslen < 1 || 5 < sslen {
-        err_msg = format!("Number of values in {} is {}, must be within [1,5]",
-            val, sslen);
-    }
-    println!("err_msg={}", err_msg);
     let default_selection = Selection{ page_number: 0, margin_width: [0, 0, 0, 0], };
     match Selection::new_or_default(val, &default_selection) {
         Ok(_) => Ok(val.to_string()),
@@ -98,16 +89,13 @@ fn parse_arguments() -> Result<CliArgs, Error> {
                 .short('s')
                 .long("selection")
                 .value_name("ITEM")
-                .help("Select a specific item for processing (can be used multiple times)")
+                .help("(repeateable) pagenum:left:bottom:right:top")
                 .action(clap::ArgAction::Append)
                 .required(true)
                 .value_parser(is_valid_selection), // This now uses our new parsing function
         )
         .try_get_matches()?; // Use `try_get_matches` to return a Result
 
-    // Extract the values and build the `CliArgs` struct.
-    // `.unwrap()` is now safe because `try_get_matches` would have already
-    // returned an error if these were missing or invalid.
     let input_file = matches.get_one::<String>("input").unwrap().to_string();
     let output_file = matches.get_one::<String>("output").unwrap().to_string();
 
