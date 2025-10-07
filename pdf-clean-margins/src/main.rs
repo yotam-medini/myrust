@@ -1,4 +1,7 @@
 use clap::{Arg, Command, Error};
+// use lopdf::{Document, Object, Stream};
+use std::fmt;
+use lopdf;
 
 // The CliArgs struct holds the parsed and validated command-line arguments.
 // This provides a clean interface for the main application logic.
@@ -17,13 +20,21 @@ struct Selection {
     page_number : u32,
     margin_width: [u32; Side::N as usize],
 }
+impl fmt::Display for Selection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.page_number)?;
+        for i in 0..4 {
+            write!(f, ":{}", self.margin_width[i]);
+        }
+        Ok(()) 
+    }
+}
 
 impl Selection {
     fn new_or_default(s: &str, default_selection: &Selection) -> Result<Self, String> {
         let mut err_msg : String = String::new();
         let ss : Vec<String> = s.split(':').map(|s| s.to_string()).collect();
         let sslen = ss.len();
-        println!("[{:?}] ss={:?}", sslen, ss);
         if sslen < 1 || 5 < sslen {
             err_msg = format!("Number of colon-separated values in {} is {}, must be within [1,5]",
                 s, sslen);
@@ -64,7 +75,7 @@ fn is_valid_selection(val: &str) -> Result<String, String> {
 // This function is dedicated to parsing the command-line arguments.
 // It returns a `Result` to allow the caller to handle parsing failures.
 fn parse_arguments() -> Result<CliArgs, Error> {
-    let matches = Command::new("My CLI App")
+    let matches = Command::new("pdf select and clean margins")
         .version("1.0")
         .author("You")
         .about("A simple application that processes files.")
@@ -72,23 +83,23 @@ fn parse_arguments() -> Result<CliArgs, Error> {
             Arg::new("input")
                 .short('i')
                 .long("input")
-                .value_name("FILE")
-                .help("Sets the input file to use")
+                .value_name("input.pdf")
+                .help("pdf input")
                 .required(true),
         )
         .arg(
             Arg::new("output")
                 .short('o')
                 .long("output")
-                .value_name("FILE")
-                .help("Sets the output file to write to")
+                .value_name("output.pdf")
+                .help("pdf output")
                 .required(true),
         )
         .arg(
             Arg::new("selection")
                 .short('s')
                 .long("selection")
-                .value_name("ITEM")
+                .value_name("PageSpec")
                 .help("(repeateable) pagenum:left:bottom:right:top")
                 .action(clap::ArgAction::Append)
                 .required(true)
@@ -117,7 +128,7 @@ fn main() {
     match parse_arguments() {
         Ok(args) => {
             // If parsing was successful, proceed with the application logic.
-            process_files(&args);
+            select_and_clean(&args);
         }
         Err(e) => {
             // If parsing failed, print the error and exit gracefully.
@@ -128,13 +139,27 @@ fn main() {
 
 // This function contains the core application logic and is completely
 // decoupled from the command-line parsing details.
-fn process_files(args: &CliArgs) {
+fn select_and_clean(args: &CliArgs) {
     println!("Processing input file: {}", args.input_file);
     println!("Writing to output file: {}", args.output_file);
 
-    println!("Selected items:");
-    for selection in &args.selections {
-        println!("- {}", selection);
+    match lopdf::Document::load(args.input_file.clone()) {
+       Ok(doc) => {
+            let mut doc_out = lopdf::Document::with_version("1.5");
+            let page_ids: Vec<lopdf::ObjectId> = doc.get_pages().into_values().collect();
+            // println!("page_ids: {:?}", page_ids);
+            println!("{} pages in {}", page_ids.len(), args.input_file);
+
+            println!("Selected items:");
+            let mut selection_prev = Selection{ page_number: 0, margin_width: [0, 0, 0, 0], };
+            for s_selection in &args.selections {
+                let mut selection = Selection::new_or_default(s_selection, &selection_prev)
+                    .unwrap();
+                println!("selection={}  page_number={}", selection, selection.page_number);
+                selection_prev = selection;
+            }
+       },
+       Err(msg) => { println!("Failed to load {}, {}", args.input_file, msg) },
     }
 
     // Add your file processing logic here.
