@@ -146,6 +146,9 @@ fn select_and_clean(args: &CliArgs) {
     match lopdf::Document::load(args.input_file.clone()) {
        Ok(doc) => {
             let mut doc_out = lopdf::Document::with_version("1.5");
+            let pages_id_out = doc_out.new_object_id();
+            let pages = lopdf::dictionary! {};
+
             let page_ids: Vec<lopdf::ObjectId> = doc.get_pages().into_values().collect();
             // println!("page_ids: {:?}", page_ids);
             println!("{} pages in {}", page_ids.len(), args.input_file);
@@ -155,9 +158,12 @@ fn select_and_clean(args: &CliArgs) {
             for s_selection in &args.selections {
                 let mut selection = Selection::new_or_default(s_selection, &selection_prev)
                     .unwrap();
-                println!("selection={}  page_number={}", selection, selection.page_number);
+                println!("selection={} page_number={}", selection, selection.page_number);
                 selection_prev = selection;
             }
+
+            doc_out.objects.insert(pages_id_out, lopdf::Object::Dictionary(pages));
+            doc_out.save(args.output_file.clone()).unwrap();
        },
        Err(msg) => { println!("Failed to load {}, {}", args.input_file, msg) },
     }
