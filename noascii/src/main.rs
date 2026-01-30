@@ -1,3 +1,6 @@
+// use std;
+// use std::fs::File;
+use std::io::BufRead; // This "unlocks" .lines()
 use clap::{Arg, Command, Error};
 // use std::fmt;
 // use unicode_properties::UnicodeEmoji;
@@ -29,16 +32,27 @@ fn parse_arguments() -> Result<CliArgs, Error> {
     })
 }
 
-fn noascii(args: &CliArgs) {
+fn noascii(args: &CliArgs) -> Result<(), Box<dyn std::error::Error>> {
    println!("noascii: {}", args.input_file);
+    let file = std::fs::File::open(args.input_file.clone())?;
+    let reader = std::io::BufReader::new(file);
+
+    for line_result in reader.lines() {
+	let line = line_result?;
+	for c in line.chars() {
+	    println!("c={}", c);
+	}
+	println!(" ");
+    }
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Call the parsing function and handle its result.
     match parse_arguments() {
         Ok(args) => {
             // If parsing was successful, proceed with the application logic.
-            noascii(&args);
+            noascii(&args)
         }
         Err(e) => {
             // If parsing failed, print the error and exit gracefully.
