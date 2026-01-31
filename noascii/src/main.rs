@@ -4,7 +4,7 @@ use std::io::BufRead; // This "unlocks" .lines()
 use clap::{Arg, Command, Error};
 // use std::fmt;
 // use unicode_properties::UnicodeEmoji;
-// use unicode_properties::UnicodeGeneralCategory;
+use unicode_properties::UnicodeGeneralCategory;
 
 struct CliArgs {
     input_file: String,
@@ -37,12 +37,17 @@ fn noascii(args: &CliArgs) -> Result<(), Box<dyn std::error::Error>> {
     let file = std::fs::File::open(args.input_file.clone())?;
     let reader = std::io::BufReader::new(file);
 
-    for line_result in reader.lines() {
+    for (ln, line_result) in reader.lines().enumerate() {
 	let line = line_result?;
-	for c in line.chars() {
-	    println!("c={}", c);
+	// println!("Line {}", ln);
+	for (col, c) in line.chars().enumerate() {
+	    if !c.is_ascii() {
+                let category = c.general_category();
+                let group = c.general_category_group();
+                println!("{}:{} c={}, category={:?}, group={:?}", ln, col, c, category, group);
+            }
 	}
-	println!(" ");
+	// println!(" ");
     }
     Ok(())
 }
