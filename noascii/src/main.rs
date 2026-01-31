@@ -34,13 +34,12 @@ fn c_to_encoding_str(c: char) -> String {
     let encoded = c.encode_utf8(&mut buf);
     let mut hex_string = String::new();
     for b in encoded.as_bytes() {
-        write!(hex_string, "{:02X} ", b).unwrap();
+        write!(hex_string, "{:02x} ", b).unwrap();
     }
     hex_string
 }
 
 fn print_non_ascii(args: &CliArgs) -> Result<(), Box<dyn std::error::Error>> {
-   println!("print_non_ascii: {}", args.input_file);
     let file = std::fs::File::open(args.input_file.clone())?;
     let reader = std::io::BufReader::new(file);
 
@@ -51,7 +50,7 @@ fn print_non_ascii(args: &CliArgs) -> Result<(), Box<dyn std::error::Error>> {
 	    if !c.is_ascii() {
                 let category = c.general_category();
                 let group = c.general_category_group();
-                println!("{}:{} c={}, [{}], category={:?}, group={:?}",
+                println!("{:4}:{:3}  c={}, [{}], category={:?}, group={:?}",
                     ln, col, c, c_to_encoding_str(c), category, group);
             }
 	}
