@@ -45,7 +45,6 @@ fn print_non_ascii(args: &CliArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     for (ln, line_result) in reader.lines().enumerate() {
 	let line = line_result?;
-	// println!("Line {}", ln);
 	for (col, c) in line.chars().enumerate() {
 	    if !c.is_ascii() {
                 let category = c.general_category();
@@ -54,7 +53,6 @@ fn print_non_ascii(args: &CliArgs) -> Result<(), Box<dyn std::error::Error>> {
                     ln, col, c, c_to_encoding_str(c), category, group);
             }
 	}
-	// println!(" ");
     }
     Ok(())
 }
@@ -63,11 +61,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Call the parsing function and handle its result.
     match parse_arguments() {
         Ok(args) => {
-            // If parsing was successful, proceed with the application logic.
             print_non_ascii(&args)
         }
         Err(e) => {
-            // If parsing failed, print the error and exit gracefully.
             e.exit();
         }
     }
