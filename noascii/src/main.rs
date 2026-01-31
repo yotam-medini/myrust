@@ -58,7 +58,6 @@ fn print_non_ascii(args: &CliArgs) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Call the parsing function and handle its result.
     match parse_arguments() {
         Ok(args) => {
             print_non_ascii(&args)
