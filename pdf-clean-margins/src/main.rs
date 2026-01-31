@@ -122,23 +122,6 @@ fn parse_arguments() -> Result<CliArgs, Error> {
     })
 }
 
-// The main function now correctly handles the `Result` from `parse_arguments`.
-fn main() {
-    // Call the parsing function and handle its result.
-    match parse_arguments() {
-        Ok(args) => {
-            // If parsing was successful, proceed with the application logic.
-            select_and_clean(&args);
-        }
-        Err(e) => {
-            // If parsing failed, print the error and exit gracefully.
-            e.exit();
-        }
-    }
-}
-
-// This function contains the core application logic and is completely
-// decoupled from the command-line parsing details.
 fn select_and_clean(args: &CliArgs) {
     println!("Processing input file: {}", args.input_file);
     println!("Writing to output file: {}", args.output_file);
@@ -168,5 +151,15 @@ fn select_and_clean(args: &CliArgs) {
        Err(msg) => { println!("Failed to load {}, {}", args.input_file, msg) },
     }
 
-    // Add your file processing logic here.
+}
+
+fn main() {
+    match parse_arguments() {
+        Ok(args) => {
+            select_and_clean(&args);
+        }
+        Err(e) => {
+            e.exit();
+        }
+    }
 }
