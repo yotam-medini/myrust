@@ -1,5 +1,4 @@
 use clap::{Arg, Command, Error};
-use std::fmt;
 use lopdf::{
     // content::{Content, Operation},
     dictionary,
@@ -25,8 +24,8 @@ struct Selection {
     page_number : u32,
     margin_width: [u32; Side::N as usize],
 }
-impl fmt::Display for Selection {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for Selection {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.page_number)?;
         for i in 0..4 {
             write!(f, ":{}", self.margin_width[i]);
