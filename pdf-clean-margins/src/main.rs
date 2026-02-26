@@ -1,7 +1,7 @@
 use clap::{Arg, Command, Error};
 use std::fmt;
 use lopdf::{
-    content::{Content, Operation},
+    // content::{Content, Operation},
     dictionary,
 };
 
