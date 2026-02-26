@@ -1,4 +1,4 @@
-use clap::{Arg, Command, Error};
+use clap;
 use lopdf::{
     // content::{Content, Operation},
     dictionary,
@@ -78,13 +78,13 @@ fn is_valid_selection(val: &str) -> Result<String, String> {
 
 // This function is dedicated to parsing the command-line arguments.
 // It returns a `Result` to allow the caller to handle parsing failures.
-fn parse_arguments() -> Result<CliArgs, Error> {
-    let matches = Command::new("pdf select and clean margins")
+fn parse_arguments() -> Result<CliArgs, clap::Error> {
+    let matches = clap::Command::new("pdf select and clean margins")
         .version("1.0")
         .author("You")
         .about("A simple application that processes files.")
         .arg(
-            Arg::new("input")
+            clap::Arg::new("input")
                 .short('i')
                 .long("input")
                 .value_name("input.pdf")
@@ -92,7 +92,7 @@ fn parse_arguments() -> Result<CliArgs, Error> {
                 .required(true),
         )
         .arg(
-            Arg::new("output")
+            clap::Arg::new("output")
                 .short('o')
                 .long("output")
                 .value_name("output.pdf")
@@ -100,7 +100,7 @@ fn parse_arguments() -> Result<CliArgs, Error> {
                 .required(true),
         )
         .arg(
-            Arg::new("selection")
+            clap::Arg::new("selection")
                 .short('s')
                 .long("selection")
                 .value_name("PageSpec")
