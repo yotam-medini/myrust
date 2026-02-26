@@ -285,6 +285,36 @@ fn get_cloned_page(
     Ok(page_id)
 }
 
+fn build_page_tree(doc: &mut lopdf::Document, pages: Vec<lopdf::ObjectId>) -> anyhow::Result<()> {
+    let pages_id = doc.new_object_id();
+    let kids: Vec<lopdf::Object> = pages.iter().map(|&p| lopdf::Object::Reference(p)).collect();
+
+    doc.objects.insert(
+        pages_id,
+        lopdf::Object::Dictionary(lopdf::dictionary! {
+            "Type" => "Pages",
+            "Kids" => kids,
+            "Count" => pages.len() as i64,
+        }),
+    );
+
+    for p in &pages {
+        doc.get_object_mut(*p)?.as_dict_mut()?.set("Parent", pages_id);
+    }
+
+    let catalog_id = doc.new_object_id();
+    doc.objects.insert(
+        catalog_id,
+        lopdf::Object::Dictionary(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        }),
+    );
+
+    doc.trailer.set("Root", catalog_id);
+    Ok(())
+}
+
 fn select_and_clean(args: &CliArgs) {
     println!("Processing input file: {}", args.input_file);
     println!("Writing to output file: {}", args.output_file);
