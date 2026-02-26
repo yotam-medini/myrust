@@ -192,7 +192,7 @@ fn clone_obj_rec(
 
 fn import_page_as_xobject(
     out: &mut lopdf::Document,
-    src: &mut lopdf::Document,
+    src: &lopdf::Document,
     page_num: u32,
 ) -> anyhow::Result<lopdf::ObjectId> {
     let mut map = std::collections::HashMap::new();
@@ -272,6 +272,16 @@ fn build_output_page(
         }),
     );
 
+    Ok(page_id)
+}
+
+fn get_cloned_page(
+    out: &mut lopdf::Document,
+    src: &lopdf::Document,
+    page_num: u32,
+) -> anyhow::Result<lopdf::ObjectId> {
+    let form_id = import_page_as_xobject(out, src, page_num)?;
+    let page_id = build_output_page(out, form_id, true)?;
     Ok(page_id)
 }
 
