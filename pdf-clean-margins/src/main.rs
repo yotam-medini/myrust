@@ -1,7 +1,13 @@
 use clap::{Arg, Command, Error};
 // use lopdf::{Document, Object, Stream};
 use std::fmt;
-use lopdf;
+use lopdf::{
+    content::{Content, Operation},
+    dictionary, Dictionary, Document, Object, ObjectId, Stream,
+};
+
+const A4_W: f64 = 595.0;
+const A4_H: f64 = 842.0;
 
 // The CliArgs struct holds the parsed and validated command-line arguments.
 // This provides a clean interface for the main application logic.
@@ -120,6 +126,106 @@ fn parse_arguments() -> Result<CliArgs, Error> {
         output_file,
         selections,
     })
+}
+
+fn clone_object(
+    src: &Document,
+    dst: &mut Document,
+    id: ObjectId,
+    map: &mut std::collections::HashMap<ObjectId, ObjectId>,
+) -> anyhow::Result<ObjectId> {
+    if let Some(&new_id) = map.get(&id) {
+        return Ok(new_id);
+    }
+
+    let new_id = dst.new_object_id();
+    map.insert(id, new_id);
+
+    let obj = src.get_object(id)?.clone();
+
+    let new_obj = match obj {
+        Object::Reference(r) => Object::Reference(clone_object(src, dst, r, map)?),
+
+        Object::Array(arr) => {
+            Object::Array(arr.into_iter().map(|o| clone_obj_rec(src, dst, o, map)).collect::<anyhow::Result<_>>()?)
+        }
+
+        Object::Dictionary(mut dict) => {
+            for (_, v) in dict.iter_mut() {
+                *v = clone_obj_rec(src, dst, v.clone(), map)?;
+            }
+            Object::Dictionary(dict)
+        }
+
+        Object::Stream(mut s) => {
+            for (_, v) in s.dict.iter_mut() {
+                *v = clone_obj_rec(src, dst, v.clone(), map)?;
+            }
+            Object::Stream(s)
+        }
+
+        other => other,
+    };
+
+    dst.objects.insert(new_id, new_obj);
+    Ok(new_id)
+}
+
+fn clone_obj_rec(
+    src: &Document,
+    dst: &mut Document,
+    obj: Object,
+    map: &mut std::collections::HashMap<ObjectId, ObjectId>,
+) -> anyhow::Result<Object> {
+    Ok(match obj {
+        Object::Reference(r) => Object::Reference(clone_object(src, dst, r, map)?),
+        Object::Array(arr) => {
+            Object::Array(arr.into_iter().map(|o| clone_obj_rec(src, dst, o, map)).collect::<anyhow::Result<_>>()?)
+        }
+        Object::Dictionary(mut dict) => {
+            for (_, v) in dict.iter_mut() {
+                *v = clone_obj_rec(src, dst, v.clone(), map)?;
+            }
+            Object::Dictionary(dict)
+        }
+        other => other,
+    })
+}
+
+fn import_page_as_xobject(
+    out: &mut Document,
+    src: &mut Document,
+    page_num: u32,
+) -> anyhow::Result<ObjectId> {
+    let mut map = std::collections::HashMap::new();
+
+    let pages = src.get_pages();
+    let page_id = pages.get(&page_num).ok_or_else(|| anyhow::anyhow!("page not found"))?;
+
+    let content_data = src.get_page_content(*page_id)?;
+
+    let (res_opt, _) = src.get_page_resources(*page_id)?;
+
+    let resources = if let Some(res_dict) = res_opt {
+        match clone_obj_rec(src, out, Object::Dictionary(res_dict.clone()), &mut map)? {
+            Object::Dictionary(d) => d,
+            _ => Dictionary::new(),
+        }
+    } else {
+        Dictionary::new()
+    };
+
+    let form = Stream::new(
+        lopdf::dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), A4_W.into(), A4_H.into()],
+            "Resources" => resources,
+        },
+        content_data,
+    );
+
+    Ok(out.add_object(form))
 }
 
 fn select_and_clean(args: &CliArgs) {
