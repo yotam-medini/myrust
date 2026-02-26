@@ -226,6 +226,55 @@ fn import_page_as_xobject(
     Ok(out.add_object(form))
 }
 
+fn build_output_page(
+    out: &mut lopdf::Document,
+    form_id: lopdf::ObjectId,
+    overlay: bool,
+) -> anyhow::Result<lopdf::ObjectId> {
+    let mut ops = vec![
+        lopdf::content::Operation::new("q", vec![]),
+        lopdf::content::Operation::new("Do", vec![lopdf::Object::Name(b"Fm0".to_vec())]),
+        lopdf::content::Operation::new("Q", vec![]),
+    ];
+
+    if overlay {
+        let w = A4_W / 2.0;
+        let h = A4_H / 2.0;
+        let x = (A4_W - w) / 2.0;
+        let y = (A4_H - h) / 2.0;
+
+        ops.extend(vec![
+            lopdf::content::Operation::new("q", vec![]),
+            lopdf::content::Operation::new("1 0 0 rg", vec![]),
+            lopdf::content::Operation::new("re", vec![x.into(), y.into(), w.into(), h.into()]),
+            lopdf::content::Operation::new("f", vec![]),
+            lopdf::content::Operation::new("Q", vec![]),
+        ]);
+    }
+
+    let content = lopdf::content::Content { operations: ops };
+    let content_id = out.add_object(lopdf::Stream::new(lopdf::dictionary! {}, content.encode()?));
+
+    let resources_id = out.add_object(lopdf::dictionary! {
+        "XObject" => lopdf::dictionary! {
+            "Fm0" => lopdf::Object::Reference(form_id)
+        }
+    });
+
+    let page_id = out.new_object_id();
+    out.objects.insert(
+        page_id,
+        lopdf::Object::Dictionary(dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), A4_W.into(), A4_H.into()],
+            "Contents" => lopdf::Object::Reference(content_id),
+            "Resources" => lopdf::Object::Reference(resources_id),
+        }),
+    );
+
+    Ok(page_id)
+}
+
 fn select_and_clean(args: &CliArgs) {
     println!("Processing input file: {}", args.input_file);
     println!("Writing to output file: {}", args.output_file);
