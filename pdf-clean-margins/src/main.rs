@@ -28,7 +28,7 @@ impl std::fmt::Display for Selection {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.page_number)?;
         for i in 0..4 {
-            write!(f, ":{}", self.margin_width[i]);
+            write!(f, ":{}", self.margin_width[i])?;
         }
         Ok(()) 
     }
