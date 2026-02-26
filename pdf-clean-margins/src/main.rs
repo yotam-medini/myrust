@@ -2,7 +2,7 @@ use clap::{Arg, Command, Error};
 use std::fmt;
 use lopdf::{
     content::{Content, Operation},
-    dictionary, Object, ObjectId, Stream,
+    dictionary,
 };
 
 const A4_W: f64 = 595.0;
@@ -130,9 +130,9 @@ fn parse_arguments() -> Result<CliArgs, Error> {
 fn clone_object(
     src: &lopdf::Document,
     dst: &mut lopdf::Document,
-    id: ObjectId,
-    map: &mut std::collections::HashMap<ObjectId, ObjectId>,
-) -> anyhow::Result<ObjectId> {
+    id: lopdf::ObjectId,
+    map: &mut std::collections::HashMap<lopdf::ObjectId, lopdf::ObjectId>,
+) -> anyhow::Result<lopdf::ObjectId> {
     if let Some(&new_id) = map.get(&id) {
         return Ok(new_id);
     }
@@ -143,24 +143,24 @@ fn clone_object(
     let obj = src.get_object(id)?.clone();
 
     let new_obj = match obj {
-        Object::Reference(r) => Object::Reference(clone_object(src, dst, r, map)?),
+        lopdf::Object::Reference(r) => lopdf::Object::Reference(clone_object(src, dst, r, map)?),
 
-        Object::Array(arr) => {
-            Object::Array(arr.into_iter().map(|o| clone_obj_rec(src, dst, o, map)).collect::<anyhow::Result<_>>()?)
+        lopdf::Object::Array(arr) => {
+            lopdf::Object::Array(arr.into_iter().map(|o| clone_obj_rec(src, dst, o, map)).collect::<anyhow::Result<_>>()?)
         }
 
-        Object::Dictionary(mut dict) => {
+        lopdf::Object::Dictionary(mut dict) => {
             for (_, v) in dict.iter_mut() {
                 *v = clone_obj_rec(src, dst, v.clone(), map)?;
             }
-            Object::Dictionary(dict)
+            lopdf::Object::Dictionary(dict)
         }
 
-        Object::Stream(mut s) => {
+        lopdf::Object::Stream(mut s) => {
             for (_, v) in s.dict.iter_mut() {
                 *v = clone_obj_rec(src, dst, v.clone(), map)?;
             }
-            Object::Stream(s)
+            lopdf::Object::Stream(s)
         }
 
         other => other,
@@ -173,19 +173,19 @@ fn clone_object(
 fn clone_obj_rec(
     src: &lopdf::Document,
     dst: &mut lopdf::Document,
-    obj: Object,
-    map: &mut std::collections::HashMap<ObjectId, ObjectId>,
-) -> anyhow::Result<Object> {
+    obj: lopdf::Object,
+    map: &mut std::collections::HashMap<lopdf::ObjectId, lopdf::ObjectId>,
+) -> anyhow::Result<lopdf::Object> {
     Ok(match obj {
-        Object::Reference(r) => Object::Reference(clone_object(src, dst, r, map)?),
-        Object::Array(arr) => {
-            Object::Array(arr.into_iter().map(|o| clone_obj_rec(src, dst, o, map)).collect::<anyhow::Result<_>>()?)
+        lopdf::Object::Reference(r) => lopdf::Object::Reference(clone_object(src, dst, r, map)?),
+        lopdf::Object::Array(arr) => {
+            lopdf::Object::Array(arr.into_iter().map(|o| clone_obj_rec(src, dst, o, map)).collect::<anyhow::Result<_>>()?)
         }
-        Object::Dictionary(mut dict) => {
+        lopdf::Object::Dictionary(mut dict) => {
             for (_, v) in dict.iter_mut() {
                 *v = clone_obj_rec(src, dst, v.clone(), map)?;
             }
-            Object::Dictionary(dict)
+            lopdf::Object::Dictionary(dict)
         }
         other => other,
     })
@@ -195,7 +195,7 @@ fn import_page_as_xobject(
     out: &mut lopdf::Document,
     src: &mut lopdf::Document,
     page_num: u32,
-) -> anyhow::Result<ObjectId> {
+) -> anyhow::Result<lopdf::ObjectId> {
     let mut map = std::collections::HashMap::new();
 
     let pages = src.get_pages();
@@ -206,15 +206,15 @@ fn import_page_as_xobject(
     let (res_opt, _) = src.get_page_resources(*page_id)?;
 
     let resources = if let Some(res_dict) = res_opt {
-        match clone_obj_rec(src, out, Object::Dictionary(res_dict.clone()), &mut map)? {
-            Object::Dictionary(d) => d,
+        match clone_obj_rec(src, out, lopdf::Object::Dictionary(res_dict.clone()), &mut map)? {
+            lopdf::Object::Dictionary(d) => d,
             _ => lopdf::Dictionary::new(),
         }
     } else {
         lopdf::Dictionary::new()
     };
 
-    let form = Stream::new(
+    let form = lopdf::Stream::new(
         lopdf::dictionary! {
             "Type" => "XObject",
             "Subtype" => "Form",
