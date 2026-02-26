@@ -1,9 +1,8 @@
 use clap::{Arg, Command, Error};
-// use lopdf::{Document, Object, Stream};
 use std::fmt;
 use lopdf::{
     content::{Content, Operation},
-    dictionary, Dictionary, Document, Object, ObjectId, Stream,
+    dictionary, Object, ObjectId, Stream,
 };
 
 const A4_W: f64 = 595.0;
@@ -129,8 +128,8 @@ fn parse_arguments() -> Result<CliArgs, Error> {
 }
 
 fn clone_object(
-    src: &Document,
-    dst: &mut Document,
+    src: &lopdf::Document,
+    dst: &mut lopdf::Document,
     id: ObjectId,
     map: &mut std::collections::HashMap<ObjectId, ObjectId>,
 ) -> anyhow::Result<ObjectId> {
@@ -172,8 +171,8 @@ fn clone_object(
 }
 
 fn clone_obj_rec(
-    src: &Document,
-    dst: &mut Document,
+    src: &lopdf::Document,
+    dst: &mut lopdf::Document,
     obj: Object,
     map: &mut std::collections::HashMap<ObjectId, ObjectId>,
 ) -> anyhow::Result<Object> {
@@ -193,8 +192,8 @@ fn clone_obj_rec(
 }
 
 fn import_page_as_xobject(
-    out: &mut Document,
-    src: &mut Document,
+    out: &mut lopdf::Document,
+    src: &mut lopdf::Document,
     page_num: u32,
 ) -> anyhow::Result<ObjectId> {
     let mut map = std::collections::HashMap::new();
@@ -209,10 +208,10 @@ fn import_page_as_xobject(
     let resources = if let Some(res_dict) = res_opt {
         match clone_obj_rec(src, out, Object::Dictionary(res_dict.clone()), &mut map)? {
             Object::Dictionary(d) => d,
-            _ => Dictionary::new(),
+            _ => lopdf::Dictionary::new(),
         }
     } else {
-        Dictionary::new()
+        lopdf::Dictionary::new()
     };
 
     let form = Stream::new(
