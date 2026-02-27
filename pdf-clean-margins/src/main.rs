@@ -325,25 +325,24 @@ fn select_and_clean(args: &CliArgs) {
             let pages_id_out = doc_out.new_object_id();
             let pages = lopdf::dictionary! {};
 
-            let page_ids: Vec<lopdf::ObjectId> = doc.get_pages().into_values().collect();
-            // println!("page_ids: {:?}", page_ids);
-            println!("{} pages in {}", page_ids.len(), args.input_file);
-
             println!("Selected items:");
+            let mut out_pages = Vec::<lopdf::ObjectId>::new();
             let mut selection_prev = Selection{ page_number: 0, margin_width: [0, 0, 0, 0], };
             for s_selection in &args.selections {
                 let mut selection = Selection::new_or_default(s_selection, &selection_prev)
                     .unwrap();
                 println!("selection={} page_number={}", selection, selection.page_number);
-                selection_prev = selection;
+                selection_prev = selection.clone();
+		let page_id = get_cloned_page(&mut doc_out, &doc, selection.page_number).unwrap();
+		out_pages.push(page_id);
             }
 
-            doc_out.objects.insert(pages_id_out, lopdf::Object::Dictionary(pages));
+	    build_page_tree(&mut doc_out, out_pages).unwrap();
+	    doc_out.compress();
             doc_out.save(args.output_file.clone()).unwrap();
        },
        Err(msg) => { println!("Failed to load {}, {}", args.input_file, msg) },
     }
-
 }
 
 fn main() {
