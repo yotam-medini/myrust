@@ -7,6 +7,14 @@ use lopdf::{
 const A4_W: f64 = 595.0;
 const A4_H: f64 = 842.0;
 
+fn obj_to_f64(obj: &lopdf::Object) -> anyhow::Result<f64> {
+    match obj {
+        lopdf::Object::Integer(i) => Ok(*i as f64),
+        lopdf::Object::Real(f) => Ok(*f as f64),
+        _ => anyhow::bail!("Expected numeric PDF object, got {:?}", obj),
+    }
+}
+
 // The CliArgs struct holds the parsed and validated command-line arguments.
 // This provides a clean interface for the main application logic.
 struct CliArgs {
@@ -194,18 +202,43 @@ fn import_page_as_xobject(
     out: &mut lopdf::Document,
     src: &lopdf::Document,
     page_num: u32,
-) -> anyhow::Result<lopdf::ObjectId> {
+) -> anyhow::Result<(lopdf::ObjectId, [f64; 4])> {
     let mut map = std::collections::HashMap::new();
 
+    // Locate source page
     let pages = src.get_pages();
-    let page_id = pages.get(&page_num).ok_or_else(|| anyhow::anyhow!("page not found"))?;
+    let page_id = *pages
+        .get(&page_num)
+        .ok_or_else(|| anyhow::anyhow!("page not found"))?;
 
-    let content_data = src.get_page_content(*page_id)?;
+    // Read original page dictionary
+    let page = src.get_object(page_id)?.as_dict()?;
 
-    let (res_opt, _) = src.get_page_resources(*page_id)?;
+    // Resolve page box (CropBox preferred, fallback MediaBox)
+    let box_obj = page
+        .get(b"CropBox")
+        .or_else(|_| page.get(b"MediaBox"))?;
+    let box_arr = box_obj.as_array()?;
 
+    let llx = obj_to_f64(&box_arr[0])?;
+    let lly = obj_to_f64(&box_arr[1])?;
+    let urx = obj_to_f64(&box_arr[2])?;
+    let ury = obj_to_f64(&box_arr[3])?;
+
+    let bbox = [llx, lly, urx, ury];
+
+    // Page content
+    let content_data = src.get_page_content(page_id)?;
+
+    // Clone page resources (deep copy!)
+    let (res_opt, _) = src.get_page_resources(page_id)?;
     let resources = if let Some(res_dict) = res_opt {
-        match clone_obj_rec(src, out, lopdf::Object::Dictionary(res_dict.clone()), &mut map)? {
+        match clone_obj_rec(
+            src,
+            out,
+            lopdf::Object::Dictionary(res_dict.clone()),
+            &mut map,
+        )? {
             lopdf::Object::Dictionary(d) => d,
             _ => lopdf::Dictionary::new(),
         }
@@ -213,26 +246,51 @@ fn import_page_as_xobject(
         lopdf::Dictionary::new()
     };
 
+    // Create Form XObject with ORIGINAL BBox
     let form = lopdf::Stream::new(
-        lopdf::dictionary! {
+        dictionary! {
             "Type" => "XObject",
             "Subtype" => "Form",
-            "BBox" => vec![0.into(), 0.into(), A4_W.into(), A4_H.into()],
+            "BBox" => vec![llx.into(), lly.into(), urx.into(), ury.into()],
             "Resources" => resources,
         },
         content_data,
     );
 
-    Ok(out.add_object(form))
+    let form_id = out.add_object(form);
+
+    Ok((form_id, bbox))
 }
 
 fn build_output_page(
     out: &mut lopdf::Document,
     form_id: lopdf::ObjectId,
+    bbox: [f64; 4],
     overlay: bool,
 ) -> anyhow::Result<lopdf::ObjectId> {
+    let llx = bbox[0];
+    let lly = bbox[1];
+    let urx = bbox[2];
+    let ury = bbox[3];
+
+    let src_w = urx - llx;
+    let src_h = ury - lly;
+
+    let scale = f64::min(A4_W / src_w, A4_H / src_h);
+    let tx = (A4_W - src_w * scale) / 2.0;
+    let ty = (A4_H - src_h * scale) / 2.0;
+
     let mut ops = vec![
         lopdf::content::Operation::new("q", vec![]),
+        lopdf::content::Operation::new(
+            "cm",
+            vec![
+                scale.into(), 0.into(),
+                0.into(), scale.into(),
+                (tx - llx * scale).into(),
+                (ty - lly * scale).into(),
+            ],
+        ),
         lopdf::content::Operation::new("Do", vec![lopdf::Object::Name(b"Fm0".to_vec())]),
         lopdf::content::Operation::new("Q", vec![]),
     ];
@@ -243,7 +301,7 @@ fn build_output_page(
         let x = (A4_W - w) / 2.0;
         let y = (A4_H - h) / 2.0;
 
-        ops.extend(vec![
+        ops.extend([
             lopdf::content::Operation::new("q", vec![]),
             lopdf::content::Operation::new("1 0 0 rg", vec![]),
             lopdf::content::Operation::new("re", vec![x.into(), y.into(), w.into(), h.into()]),
@@ -252,11 +310,13 @@ fn build_output_page(
         ]);
     }
 
-    let content = lopdf::content::Content { operations: ops };
-    let content_id = out.add_object(lopdf::Stream::new(lopdf::dictionary! {}, content.encode()?));
+    let content_id = out.add_object(lopdf::Stream::new(
+        dictionary! {},
+        lopdf::content::Content { operations: ops }.encode()?,
+    ));
 
-    let resources_id = out.add_object(lopdf::dictionary! {
-        "XObject" => lopdf::dictionary! {
+    let resources_id = out.add_object(dictionary! {
+        "XObject" => dictionary! {
             "Fm0" => lopdf::Object::Reference(form_id)
         }
     });
@@ -264,7 +324,7 @@ fn build_output_page(
     let page_id = out.new_object_id();
     out.objects.insert(
         page_id,
-        lopdf::Object::Dictionary(dictionary! {
+        lopdf::Object::Dictionary(lopdf::dictionary! {
             "Type" => "Page",
             "MediaBox" => vec![0.into(), 0.into(), A4_W.into(), A4_H.into()],
             "Contents" => lopdf::Object::Reference(content_id),
@@ -280,8 +340,8 @@ fn get_cloned_page(
     src: &lopdf::Document,
     page_num: u32,
 ) -> anyhow::Result<lopdf::ObjectId> {
-    let form_id = import_page_as_xobject(out, src, page_num)?;
-    let page_id = build_output_page(out, form_id, true)?;
+    let (form_id, bbox) = import_page_as_xobject(out, src, page_num)?;
+    let page_id = build_output_page(out, form_id, bbox, false)?;
     Ok(page_id)
 }
 
@@ -322,8 +382,6 @@ fn select_and_clean(args: &CliArgs) {
     match lopdf::Document::load(args.input_file.clone()) {
        Ok(doc) => {
             let mut doc_out = lopdf::Document::with_version("1.5");
-            let pages_id_out = doc_out.new_object_id();
-            let pages = lopdf::dictionary! {};
 
             println!("Selected items:");
             let mut out_pages = Vec::<lopdf::ObjectId>::new();
