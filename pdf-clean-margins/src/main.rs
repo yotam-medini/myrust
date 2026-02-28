@@ -305,11 +305,8 @@ fn build_output_page(
 
     for br in &blank_rects {
         ops.extend([
-            // isolate graphics state
-            lopdf::content::Operation::new("q", vec![]),
-
-            // reset CTM so (0,0) is page bottom-left
-            lopdf::content::Operation::new(
+            lopdf::content::Operation::new("q", vec![]),  // isolate graphics state
+            lopdf::content::Operation::new(  // reset CTM so (0,0) is page bottom-left
                 "cm",
                 vec![
                     1.into(), 0.into(),
@@ -317,35 +314,12 @@ fn build_output_page(
                     0.into(), 0.into(),
                 ],
             ),
-
-            // set fill color (red here; use 1 1 1 for white)
-            lopdf::content::Operation::new(
-                "rg",
-                vec![1.into(), 0.into(), 0.into()],
-            ),
-
-            // rectangle: x y width height
-            lopdf::content::Operation::new(
-                "re",
-                vec![br[0].into(), br[1].into(), br[2].into(), br[3].into()],
-            ),
-
-            // fill
-            lopdf::content::Operation::new("f", vec![]),
-
-            // restore graphics state
-            lopdf::content::Operation::new("Q", vec![]),
+            lopdf::content::Operation::new("rg", vec![1.into(), 0.into(), 0.into()], ), // fill color
+            lopdf::content::Operation::new("re",vec![br[0].into(), br[1].into(), br[2].into(), br[3].into()], ), // rect
+            lopdf::content::Operation::new("f", vec![]), // fille
+            lopdf::content::Operation::new("Q", vec![]), // restore graphics state
         ]);
     }
-//     for br in &blank_rects {
-//         ops.extend([
-//             lopdf::content::Operation::new("q", vec![]),
-//             lopdf::content::Operation::new("1 0 0 rg", vec![br[0].into(), br[1].into(), br[2].into(), br[3].into()]),
-//             lopdf::content::Operation::new("re", vec![]),
-//             lopdf::content::Operation::new("f", vec![]),
-//             lopdf::content::Operation::new("Q", vec![]),
-//         ]);
-//     }
 
     if overlay {
         let w = A4_W / 2.0;
