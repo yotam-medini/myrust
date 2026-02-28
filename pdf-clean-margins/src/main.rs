@@ -302,6 +302,15 @@ fn build_output_page(
     if let Some(w) = Some(selection.margin_width[Side::Left as usize]).filter(|&w| w > 0) {
         blank_rects.push([0.0, 0.0, w as f64, A4_H as f64]);
     }
+    if let Some(w) = Some(selection.margin_width[Side::Bottom as usize]).filter(|&w| w > 0) {
+        blank_rects.push([0.0, 0.0, A4_W as f64, w as f64]);
+    }
+    if let Some(w) = Some(selection.margin_width[Side::Right as usize]).filter(|&w| w > 0) {
+        blank_rects.push([A4_W - w as f64, 0.0, A4_W as f64, A4_H as f64]);
+    }
+    if let Some(w) = Some(selection.margin_width[Side::Top as usize]).filter(|&w| w > 0) {
+        blank_rects.push([0.0, (A4_H - w as f64), A4_W as f64, A4_H as f64]);
+    }
 
     for br in &blank_rects {
         ops.extend([
