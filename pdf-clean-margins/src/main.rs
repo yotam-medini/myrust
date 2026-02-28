@@ -21,6 +21,7 @@ struct CliArgs {
     input_file: String,
     output_file: String,
     selections: Vec<String>,
+    is_red: bool,
 }
 
 #[repr(usize)]
@@ -117,6 +118,12 @@ fn parse_arguments() -> Result<CliArgs, clap::Error> {
                 .required(true)
                 .value_parser(is_valid_selection), // This now uses our new parsing function
         )
+        .arg(
+            clap::Arg::new("red")
+                .long("red")
+                .help("red for debug")
+                .action(clap::ArgAction::SetTrue),
+        )
         .try_get_matches()?; // Use `try_get_matches` to return a Result
 
     let input_file = matches.get_one::<String>("input").unwrap().to_string();
@@ -126,11 +133,11 @@ fn parse_arguments() -> Result<CliArgs, clap::Error> {
                                         .unwrap()
                                         .map(|s| s.to_string())
                                         .collect();
-
     Ok(CliArgs {
         input_file,
         output_file,
         selections,
+        is_red: matches.get_flag("red"),
     })
 }
 
@@ -263,6 +270,7 @@ fn import_page_as_xobject(
 }
 
 fn build_output_page(
+    args: &CliArgs,
     out: &mut lopdf::Document,
     form_id: lopdf::ObjectId,
     bbox: [f64; 4],
@@ -311,6 +319,11 @@ fn build_output_page(
     if let Some(w) = Some(selection.margin_width[Side::Top as usize]).filter(|&w| w > 0) {
         blank_rects.push([0.0, (A4_H - w as f64), A4_W as f64, A4_H as f64]);
     }
+    let fill_color = if args.is_red {
+        vec![1.into(), 0.into(), 0.into()]
+    } else {
+        vec![1.into(), 1.into(), 1.into()]
+    };
 
     for br in &blank_rects {
         ops.extend([
@@ -323,7 +336,7 @@ fn build_output_page(
                     0.into(), 0.into(),
                 ],
             ),
-            lopdf::content::Operation::new("rg", vec![1.into(), 0.into(), 0.into()], ), // fill color
+            lopdf::content::Operation::new("rg", fill_color.clone(), ), // fill color
             lopdf::content::Operation::new("re",vec![br[0].into(), br[1].into(), br[2].into(), br[3].into()], ), // rect
             lopdf::content::Operation::new("f", vec![]), // fille
             lopdf::content::Operation::new("Q", vec![]), // restore graphics state
@@ -371,12 +384,13 @@ fn build_output_page(
 }
 
 fn get_cloned_page(
+    args: &CliArgs,
     out: &mut lopdf::Document,
     src: &lopdf::Document,
     selection: &Selection,
 ) -> anyhow::Result<lopdf::ObjectId> {
     let (form_id, bbox) = import_page_as_xobject(out, src, selection.page_number)?;
-    let page_id = build_output_page(out, form_id, bbox, selection)?;
+    let page_id = build_output_page(args, out, form_id, bbox, selection)?;
     Ok(page_id)
 }
 
@@ -426,7 +440,7 @@ fn select_and_clean(args: &CliArgs) {
                     .unwrap();
                 println!("selection={} page_number={}", selection, selection);
                 selection_prev = selection.clone();
-		let page_id = get_cloned_page(&mut doc_out, &doc, &selection).unwrap();
+		let page_id = get_cloned_page(args, &mut doc_out, &doc, &selection).unwrap();
 		out_pages.push(page_id);
             }
 
