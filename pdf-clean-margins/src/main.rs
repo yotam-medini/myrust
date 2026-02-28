@@ -21,6 +21,7 @@ struct CliArgs {
     input_file: String,
     output_file: String,
     selections: Vec<String>,
+    page_wh_points: (f64, f64),
     is_red: bool,
 }
 
@@ -119,6 +120,28 @@ fn parse_arguments() -> Result<CliArgs, clap::Error> {
                 .value_parser(is_valid_selection), // This now uses our new parsing function
         )
         .arg(
+            clap::Arg::new("page")
+                .long("page")
+                .value_parser(["a4", "letter"])
+                .default_value("a4")
+                .conflicts_with("width") 
+                .help("Standard page size"),
+        )
+        .arg(
+            clap::Arg::new("width")
+                .long("width")
+                .value_parser(clap::value_parser!(f64))
+                .requires("height")
+                .help("Custom width in points"),
+        )
+        .arg(
+            clap::Arg::new("height")
+                .long("height")
+                .value_parser(clap::value_parser!(f64))
+                .requires("width")
+                .help("Custom height in points"),
+        )
+        .arg(
             clap::Arg::new("red")
                 .long("red")
                 .help("red for debug")
@@ -133,10 +156,24 @@ fn parse_arguments() -> Result<CliArgs, clap::Error> {
                                         .unwrap()
                                         .map(|s| s.to_string())
                                         .collect();
+    let page_wh_points = if let (Some(&width), Some(&height)) = (
+        matches.get_one::<f64>("width"),
+        matches.get_one::<f64>("height"),
+    ) {
+        (width, height)
+    } else {
+        // If custom isn't provided, 'page' is guaranteed to exist because of the default
+        match matches.get_one::<String>("page").unwrap().as_str() {
+            "letter" => (612.0, 792.0),
+            "a4" | _ => (595.0, 842.0),
+        }
+    };
+
     Ok(CliArgs {
         input_file,
         output_file,
         selections,
+        page_wh_points,
         is_red: matches.get_flag("red"),
     })
 }
@@ -427,6 +464,7 @@ fn build_page_tree(doc: &mut lopdf::Document, pages: Vec<lopdf::ObjectId>) -> an
 fn select_and_clean(args: &CliArgs) {
     println!("Processing input file: {}", args.input_file);
     println!("Writing to output file: {}", args.output_file);
+    println!("page_wh_points: {:?}", args.page_wh_points);
 
     match lopdf::Document::load(args.input_file.clone()) {
        Ok(doc) => {
