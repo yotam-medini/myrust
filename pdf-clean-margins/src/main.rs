@@ -266,8 +266,9 @@ fn build_output_page(
     out: &mut lopdf::Document,
     form_id: lopdf::ObjectId,
     bbox: [f64; 4],
-    overlay: bool,
+    selection: &Selection,
 ) -> anyhow::Result<lopdf::ObjectId> {
+    let overlay = false;
     let llx = bbox[0];
     let lly = bbox[1];
     let urx = bbox[2];
@@ -338,10 +339,10 @@ fn build_output_page(
 fn get_cloned_page(
     out: &mut lopdf::Document,
     src: &lopdf::Document,
-    page_num: u32,
+    selection: &Selection,
 ) -> anyhow::Result<lopdf::ObjectId> {
-    let (form_id, bbox) = import_page_as_xobject(out, src, page_num)?;
-    let page_id = build_output_page(out, form_id, bbox, false)?;
+    let (form_id, bbox) = import_page_as_xobject(out, src, selection.page_number)?;
+    let page_id = build_output_page(out, form_id, bbox, selection)?;
     Ok(page_id)
 }
 
@@ -389,9 +390,9 @@ fn select_and_clean(args: &CliArgs) {
             for s_selection in &args.selections {
                 let mut selection = Selection::new_or_default(s_selection, &selection_prev)
                     .unwrap();
-                println!("selection={} page_number={}", selection, selection.page_number);
+                println!("selection={} page_number={}", selection, selection);
                 selection_prev = selection.clone();
-		let page_id = get_cloned_page(&mut doc_out, &doc, selection.page_number).unwrap();
+		let page_id = get_cloned_page(&mut doc_out, &doc, &selection).unwrap();
 		out_pages.push(page_id);
             }
 
