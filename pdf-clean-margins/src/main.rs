@@ -273,6 +273,8 @@ fn build_output_page(
     let lly = bbox[1];
     let urx = bbox[2];
     let ury = bbox[3];
+    // let rotation = out.get_page_rotation(form_id).unwrap_or(13);
+    println!("A4=({}, {})  ll=({}, {}) ur=({}, {})", A4_W, A4_H, llx, lly, urx, ury);
 
     let src_w = urx - llx;
     let src_h = ury - lly;
@@ -295,6 +297,55 @@ fn build_output_page(
         lopdf::content::Operation::new("Do", vec![lopdf::Object::Name(b"Fm0".to_vec())]),
         lopdf::content::Operation::new("Q", vec![]),
     ];
+
+    let mut blank_rects: Vec<[f64; 4]> = Vec::new();
+    if let Some(w) = Some(selection.margin_width[Side::Left as usize]).filter(|&w| w > 0) {
+        blank_rects.push([0.0, 0.0, w as f64, A4_H as f64]);
+    }
+
+    for br in &blank_rects {
+        ops.extend([
+            // isolate graphics state
+            lopdf::content::Operation::new("q", vec![]),
+
+            // reset CTM so (0,0) is page bottom-left
+            lopdf::content::Operation::new(
+                "cm",
+                vec![
+                    1.into(), 0.into(),
+                    0.into(), 1.into(),
+                    0.into(), 0.into(),
+                ],
+            ),
+
+            // set fill color (red here; use 1 1 1 for white)
+            lopdf::content::Operation::new(
+                "rg",
+                vec![1.into(), 0.into(), 0.into()],
+            ),
+
+            // rectangle: x y width height
+            lopdf::content::Operation::new(
+                "re",
+                vec![br[0].into(), br[1].into(), br[2].into(), br[3].into()],
+            ),
+
+            // fill
+            lopdf::content::Operation::new("f", vec![]),
+
+            // restore graphics state
+            lopdf::content::Operation::new("Q", vec![]),
+        ]);
+    }
+//     for br in &blank_rects {
+//         ops.extend([
+//             lopdf::content::Operation::new("q", vec![]),
+//             lopdf::content::Operation::new("1 0 0 rg", vec![br[0].into(), br[1].into(), br[2].into(), br[3].into()]),
+//             lopdf::content::Operation::new("re", vec![]),
+//             lopdf::content::Operation::new("f", vec![]),
+//             lopdf::content::Operation::new("Q", vec![]),
+//         ]);
+//     }
 
     if overlay {
         let w = A4_W / 2.0;
@@ -388,7 +439,7 @@ fn select_and_clean(args: &CliArgs) {
             let mut out_pages = Vec::<lopdf::ObjectId>::new();
             let mut selection_prev = Selection{ page_number: 0, margin_width: [0, 0, 0, 0], };
             for s_selection in &args.selections {
-                let mut selection = Selection::new_or_default(s_selection, &selection_prev)
+                let selection = Selection::new_or_default(s_selection, &selection_prev)
                     .unwrap();
                 println!("selection={} page_number={}", selection, selection);
                 selection_prev = selection.clone();
