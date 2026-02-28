@@ -4,8 +4,8 @@ use lopdf::{
     dictionary,
 };
 
-const A4_W: f64 = 595.0;
-const A4_H: f64 = 842.0;
+// const A4_W: f64 = 595.0;
+// const A4_H: f64 = 842.0;
 
 fn obj_to_f64(obj: &lopdf::Object) -> anyhow::Result<f64> {
     match obj {
@@ -313,20 +313,21 @@ fn build_output_page(
     bbox: [f64; 4],
     selection: &Selection,
 ) -> anyhow::Result<lopdf::ObjectId> {
-    let overlay = false;
+    let page_w : f64 = args.page_wh_points.0;
+    let page_h : f64 = args.page_wh_points.1;
     let llx = bbox[0];
     let lly = bbox[1];
     let urx = bbox[2];
     let ury = bbox[3];
-    // let rotation = out.get_page_rotation(form_id).unwrap_or(13);
-    println!("A4=({}, {})  ll=({}, {}) ur=({}, {})", A4_W, A4_H, llx, lly, urx, ury);
+
+    println!("A4=({}, {})  ll=({}, {}) ur=({}, {})", page_w, page_h, llx, lly, urx, ury);
 
     let src_w = urx - llx;
     let src_h = ury - lly;
 
-    let scale = f64::min(A4_W / src_w, A4_H / src_h);
-    let tx = (A4_W - src_w * scale) / 2.0;
-    let ty = (A4_H - src_h * scale) / 2.0;
+    let scale = f64::min(page_w / src_w, page_h / src_h);
+    let tx = (page_w - src_w * scale) / 2.0;
+    let ty = (page_h - src_h * scale) / 2.0;
 
     let mut ops = vec![
         lopdf::content::Operation::new("q", vec![]),
@@ -345,16 +346,16 @@ fn build_output_page(
 
     let mut blank_rects: Vec<[f64; 4]> = Vec::new();
     if let Some(w) = Some(selection.margin_width[Side::Left as usize]).filter(|&w| w > 0) {
-        blank_rects.push([0.0, 0.0, w as f64, A4_H as f64]);
+        blank_rects.push([0.0, 0.0, w as f64, page_h]);
     }
     if let Some(w) = Some(selection.margin_width[Side::Bottom as usize]).filter(|&w| w > 0) {
-        blank_rects.push([0.0, 0.0, A4_W as f64, w as f64]);
+        blank_rects.push([0.0, 0.0, page_w, w as f64]);
     }
     if let Some(w) = Some(selection.margin_width[Side::Right as usize]).filter(|&w| w > 0) {
-        blank_rects.push([A4_W - w as f64, 0.0, A4_W as f64, A4_H as f64]);
+        blank_rects.push([page_w - w as f64, 0.0, page_w, page_h]);
     }
     if let Some(w) = Some(selection.margin_width[Side::Top as usize]).filter(|&w| w > 0) {
-        blank_rects.push([0.0, (A4_H - w as f64), A4_W as f64, A4_H as f64]);
+        blank_rects.push([0.0, (page_h - w as f64), page_w, page_h]);
     }
     let fill_color = if args.is_red {
         vec![1.into(), 0.into(), 0.into()]
@@ -380,21 +381,6 @@ fn build_output_page(
         ]);
     }
 
-    if overlay {
-        let w = A4_W / 2.0;
-        let h = A4_H / 2.0;
-        let x = (A4_W - w) / 2.0;
-        let y = (A4_H - h) / 2.0;
-
-        ops.extend([
-            lopdf::content::Operation::new("q", vec![]),
-            lopdf::content::Operation::new("1 0 0 rg", vec![]),
-            lopdf::content::Operation::new("re", vec![x.into(), y.into(), w.into(), h.into()]),
-            lopdf::content::Operation::new("f", vec![]),
-            lopdf::content::Operation::new("Q", vec![]),
-        ]);
-    }
-
     let content_id = out.add_object(lopdf::Stream::new(
         dictionary! {},
         lopdf::content::Content { operations: ops }.encode()?,
@@ -411,7 +397,7 @@ fn build_output_page(
         page_id,
         lopdf::Object::Dictionary(lopdf::dictionary! {
             "Type" => "Page",
-            "MediaBox" => vec![0.into(), 0.into(), A4_W.into(), A4_H.into()],
+            "MediaBox" => vec![0.into(), 0.into(), page_w.into(), page_h.into()],
             "Contents" => lopdf::Object::Reference(content_id),
             "Resources" => lopdf::Object::Reference(resources_id),
         }),
